@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+venv/
+.ipynb_checkpoints/
+*.pyc
+*.joblib
+*.npy
+
+# Inventor
+OldVersions/
+*.tmp
