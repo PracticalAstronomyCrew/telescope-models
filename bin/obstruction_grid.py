@@ -43,7 +43,7 @@ try:
 except FileExistsError:
     pass
 else:
-    print('Created the data/obstructed folder(s)...')
+    print('Created the data/.../obstructed folder(s)...')
 
 
 def get_azimuth_path(az):
