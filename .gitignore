@@ -9,3 +9,6 @@ venv/
 # Inventor
 OldVersions/
 *.tmp
+
+# Exlcude generated data files
+data/

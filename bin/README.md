@@ -4,7 +4,7 @@ This folder contains the code used to model the obstruction of the Gratama teles
 
 ## What's here & how to use it?
 
-This folder contains the `obstruction` package and the `obstruction_cube` and `optimal_azimuth` scripts!
+This folder contains the `obstruction` package and the `obstruction_cube` and `optimal_azimuth` scripts! Additionally, there is a `requirements.txt` file with the relevant packages.
 
 ### The obstruction package
 

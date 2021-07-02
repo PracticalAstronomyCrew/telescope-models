@@ -49,13 +49,13 @@ if args.aperture == 'telescope_guider':
     obstruction_data_tele = None
     obstruction_data_guider = None
     
-    fn = input('Insert obstruction cube file name obstruction_cube_telescope_*.npy:')
+    fn = input('Insert obstruction cube file name (i.e. obstruction_cube_telescope_*.npy): ')
     path = SRC / fn
     
     with path.open('rb') as obstr_file:
         obstruction_data_tele = np.load(obstr_file)
     
-    fn = input('Insert obstruction cube file name obstruction_cube_guider_*.npy:')
+    fn = input('Insert obstruction cube file name (i.e. obstruction_cube_guider_*.npy): ')
     path = SRC / fn
 
     with path.open('rb') as obstr_file:
@@ -69,7 +69,7 @@ if args.aperture == 'telescope_guider':
     az_zero = az[cond]
 
 else:
-    fn = input('Insert obstruction cube file name obstruction_cube_*_*.npy:')
+    fn = input('Insert obstruction cube file name (i.e. obstruction_cube_*_*.npy): ')
     path = SRC / fn
 
     with path.open('rb') as obstr_file:
@@ -81,7 +81,6 @@ else:
     ha_zero = ha[cond]
     dec_zero = dec[cond]
     az_zero = az[cond]
-
 
 # Define the ranges of HA and Dec values corresponding to 0% obstruction
 ha_range = np.arange(ha_zero.min(), ha_zero.max() + 1, 1)

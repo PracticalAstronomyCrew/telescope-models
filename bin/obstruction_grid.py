@@ -15,7 +15,6 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('-a', '--aperture', action='store', type=str, default='telescope', help='select aperture: telescope, finder, guider | default: telescope')
 parser.add_argument('-r', '--rate', action='store', type=int, default=3, help='no. rays (for decent results >3; preferably 4-10) | default: 3')
-parser.add_argument('-r', '--rate', action='store', type=int, default=3, help='no. rays (for decent results >3; preferably 4-10) | default: 3')
 
 args = parser.parse_args()
 
@@ -68,7 +67,7 @@ def generate_obstruction_grid(az):
 
     print('Finished az = {:>3.0f} degrees at {}'.format(az, datetime.now().strftime('%H:%M')))
 
-    with get_azimuth_path(APERTURE, az).open(mode='wb') as azimuth_file:
+    with get_azimuth_path(az).open(mode='wb') as azimuth_file:
         dump(p, azimuth_file)
 
 def combine():
@@ -79,14 +78,14 @@ def combine():
     obstr_cube = []
 
     for az in az_range:
-        with get_azimuth_path(APERTURE, az).open(mode='rb') as azimuth_file:
+        with get_azimuth_path(az).open(mode='rb') as azimuth_file:
             data = load(azimuth_file)
             obstr_cube.append(data)
 
     obstr_cube = np.array(obstr_cube)
 
     date_signature = datetime.now().strftime('%d_%h_%Y')
-    fn = 'obstruction_cube_{}_{}.npy'.format(args.APERTURE, date_signature)
+    fn = 'obstruction_cube_{}_{}.npy'.format(args.aperture, date_signature)
     file_path = Path.cwd() / 'data' / fn
 
     with file_path.open(mode='wb') as obstr_file:
