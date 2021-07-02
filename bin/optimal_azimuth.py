@@ -7,76 +7,87 @@ from joblib import Parallel, delayed, dump, load
 
 parser = argparse.ArgumentParser(
             allow_abbrev=True, 
-            description='Produce a grid of the obstruction of the main aperture/finder/guider by the dome for all possible HAs, Decs, and dome azimuths'
+            description='Produce a grid with optimal azimuth angles for the dome, given the appropriate (combination of) aperture(s).'
         )
 
-parser.add_argument('-a', '--aperture', action='store', type=str, default='telescope', help='select aperture: telescope, finder, guider | default: telescope')
-parser.add_argument('-d', '--date', action='store', type=str, help='date stamp: e.g. 12_Jun_2021')
-parser.add_argument('--alt', action='store_true', default=False, help='add the > 15 degrees altitude requirement')
+parser.add_argument('-a', '--aperture', action='store', type=str, default='telescope', help='select aperture: telescope, finder, guider, telescope_guider | default: telescope')
 
 args = parser.parse_args()
 
 # Constants for generating/saving the data
 APERTURE_NAME = args.aperture
-LOAD_DATE_SIGNATURE = args.date
+# LOAD_DATE_SIGNATURE = args.date
 STORE_DATE_SIGNATURE = datetime.now().strftime('%d_%h_%Y')
-OBSTR_DATA_FILE = Path.cwd() / 'data' / 'obstruction_cube_{}_{}.npy'.format(APERTURE_NAME, LOAD_DATE_SIGNATURE)
+SRC = Path.cwd() / 'data'
 OPT_DATA_FILE = Path.cwd() / 'data' / 'optimal_azimuth_{}_{}.csv'.format(APERTURE_NAME, STORE_DATE_SIGNATURE)
 
-obstruction_data = None
-
-with OBSTR_DATA_FILE.open('rb') as f:
-    obstruction_data = np.load(f)
-
-# Define a fine grid for the HA, Dec, and dome Az
+# Define a grid for the HA, Dec, and dome Az
 _az = np.linspace(0, 359, 360)
 _ha = np.linspace(0, 359, 360)
 _dec = np.linspace(-90, 90, 181)
 
 az, ha, dec = np.meshgrid(_az, _ha, _dec, indexing='ij')
 
-# Extract data where there is no obstruction by the dome
-def altitude(ha, dec):
-    """Returns altitude in deg."""
-    lat = np.radians(LAT)
-    dec = np.radians(dec)
-    ha  = np.radians(ha)
+ha_zero = None
+dec_zero = None
+az_zero = None
+
+if args.aperture == 'telescope_guider':
+    obstruction_data_tele = None
+    obstruction_data_guider = None
     
-    term_1 = np.sin(dec)*np.sin(lat)
-    term_2 = np.cos(dec)*np.cos(lat)*np.cos(ha)
+    fn = input('Insert obstruction cube file name obstruction_cube_telescope_*.npy:')
+    path = SRC / fn
     
-    a = np.degrees(np.arcsin(term_1 + term_2))
+    with path.open('rb') as obstr_file:
+        obstruction_data_tele = np.load(obstr_file)
     
-    return a
+    fn = input('Insert obstruction cube file name obstruction_cube_guider_*.npy:')
+    path = SRC / fn
 
+    with path.open('rb') as obstr_file:
+        obstruction_data_guider = np.load(obstr_file)
 
+    # Extract the (HA, Dec) coordinates w/ 0% obstruction for the telescope + guider
+    cond = (obstruction_data_tele == obstruction_data_tele.min())&(obstruction_data_guider < 0.5)
 
-cond = obstruction_data == obstruction_data.min()
+    ha_zero = ha[cond]
+    dec_zero = dec[cond]
+    az_zero = az[cond]
+else:
+    fn = input('Insert obstruction cube file name obstruction_cube_*_*.npy:')
+    path = SRC / fn
 
-if args.alt:    
-    alt = altitude(ha, dec)
-    altitude_cond = alt >= 15
+    with path.open('rb') as obstr_file:
+        obstruction_data = np.load(obstr_file)
+    
+    # Extract the (HA, Dec) coordinates w/ 0% obstruction for a single aperture
+    cond = obstruction_data == obstruction_data.min()
 
-    cond &= altitude_cond
+    ha_zero = ha[cond]
+    dec_zero = dec[cond]
+    az_zero = az[cond]
 
-ha_zero = ha[cond]
-# ha_zero = np.where(ha_zero < 0, ha_zero + 360, ha_zero) # shift the HA to be from 0h to 24h
-
-dec_zero = dec[cond]
-az_zero = az[cond]
-
-# Define the ranges of HA and Dec corresponding to 0% obstruction
+# Define the ranges of HA and Dec values corresponding to 0% obstruction
 ha_range = np.arange(ha_zero.min(), ha_zero.max() + 1, 1)
 dec_range = np.arange(dec_zero.min(), dec_zero.max() + 1, 1)
 
 def ha_dist(ha_array, ha_0):
+    """Compute the time the dome could remain at a certain position.
+    
+    Parameters
+    ----------
+    ha_array: 1d array w/ all possible hour angles
+    ha_0: initial hour angle
+    """
     try:
         # Verify that the initial HA is indeed an option in ha_array
         start = np.argwhere(np.isclose(ha_array, ha_0)).ravel()[0]
     except IndexError:
         return -1
 
-    ha_shifted = (ha_array - ha_0) % 360 # Set ha_0 to be 0
+    # Shift the HA options s.t. ha_0 corresponds to 0 h
+    ha_shifted = (ha_array - ha_0) % 360
     ha_shifted.sort()
     
     idx = np.argwhere(~np.isclose(np.diff(ha_shifted), 1)).ravel()
@@ -87,6 +98,14 @@ def ha_dist(ha_array, ha_0):
     return ha_shifted.size
 
 def optimal_az(az_options, ha, dec):
+    """Compute the optimal dome azimuth angle.
+    
+    Parameters
+    ----------
+    az_options: all possible azimuth angles w/ 0% obstruction
+    ha: the initial hour angle
+    dec: the initial declination
+    """
     dec_sel = np.argwhere(np.isclose(dec_zero, dec)).ravel()
     
     azimuths = []
@@ -100,8 +119,6 @@ def optimal_az(az_options, ha, dec):
         # Extract the range of possible HAs
         hs = ha_zero[indices]
         
-        # print('possible HAs:', hs)
-        
         if hs.size:
             dh = ha_dist(hs, ha)
             
@@ -113,12 +130,10 @@ def optimal_az(az_options, ha, dec):
     
     return azimuths[delta_hs.argmax()], delta_hs.max()
 
-# ------------------#
-#  Parallelisation  #
-# ------------------#
 
 def file_name(h):
     return 'data/{}/azimuth/ha_{:.0f}.joblib'.format(APERTURE_NAME, h)
+
 
 def gen_grid(h):
     optimal_decs = []
@@ -151,7 +166,7 @@ def gen_grid(h):
 
     print('finished ha = {:>3.0f} degrees at {}'.format(h, datetime.now().strftime('%H:%M')))
 
-def stitch_together():
+def combine():
     opt_data = np.empty((1, 4))
 
     for ha in ha_range:
@@ -174,4 +189,4 @@ if __name__ == '__main__':
 
     print('finish [{}] run at {:}'.format(APERTURE_NAME, datetime.now().strftime('%H:%M')))
 
-    stitch_together()
+    combine()

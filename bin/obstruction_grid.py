@@ -1,29 +1,33 @@
 import numpy as np
 import argparse
 
+from pathlib import Path
 from joblib import Parallel, delayed, dump, load
 from datetime import datetime
 
 from obstruction.aperture import TelescopeAperture, GuiderAperture, FinderAperture
 
+
 parser = argparse.ArgumentParser(
             allow_abbrev=True, 
-            description='Produce a grid of the obstruction of the main aperture/finder/guider by the dome for all possible HAs, Decs, and dome azimuths'
+            description='Produce a grid of the obstruction % of the telescope/finder/guider by the dome for all possible HAs, Decs, and dome azimuth angles'
         )
 
 parser.add_argument('-a', '--aperture', action='store', type=str, default='telescope', help='select aperture: telescope, finder, guider | default: telescope')
 parser.add_argument('-r', '--rate', action='store', type=int, default=3, help='no. rays (for decent results >3; preferably 4-10) | default: 3')
+parser.add_argument('-r', '--rate', action='store', type=int, default=3, help='no. rays (for decent results >3; preferably 4-10) | default: 3')
 
 args = parser.parse_args()
 
-# sample HA from -12 h to 12 h; Dec from -90 to 90 deg
-h = np.linspace(0, 359, 360)
+
+# sample HA from 0 h to 24 h & Dec from -90 to 90 deg
+ha = np.linspace(0, 359, 360)
 dec = np.linspace(-90, 90, 181)
 
-# Create a data file per possible azimuth!
+# Create a temporary joblib data file for each azimuth
 az_range = np.arange(0, 360, 1)
 
-# Define a global variable for the selected aperture
+# Select the appropriate aperture
 if args.aperture == 'guider':
     APERTURE = GuiderAperture(rate=args.rate)
 elif args.aperture == 'finder':
@@ -31,47 +35,70 @@ elif args.aperture == 'finder':
 else:
     APERTURE = TelescopeAperture(rate=args.rate)
 
-def file_name(n):
-    fn = 'data/' + APERTURE.get_name() + '/blocked/az_' + str(n) + '.joblib'
+# Verify whether the appropriate file structure exists/otherwise create required folders
+req_path = Path.cwd() / 'data' / APERTURE.get_name() / 'obstructed'
 
-    return fn
+try:
+    req_path.mkdir(parents=True, exist_ok=False)
+except FileExistsError:
+    pass
+else:
+    print('Created the data/obstructed folder(s)...')
 
-def gen_grid(n_az):
-    p = np.zeros((h.size, dec.size))
 
-    for i in range(h.size):
+def get_azimuth_path(az):
+    fn = 'az_{}.joblib'.format(int(az))
+
+    return req_path / fn
+
+def generate_obstruction_grid(az):
+    """Store the % obstruction for a single azimuth.
+    
+    Parameters
+    ----------
+    az: the azimuth in degrees
+    """
+    p = np.zeros((ha.size, dec.size)) # % obstruction grid
+
+    for i in range(ha.size):
         for j in range(dec.size):
-            percentage = APERTURE.obstruction(h[i], dec[j], n_az)
+            percentage = APERTURE.obstruction(ha[i], dec[j], az)
 
             p[i, j] = percentage
 
-    print('finished az = {:>3.0f} degrees at {}'.format(n_az, datetime.now().strftime('%H:%M')))
+    print('Finished az = {:>3.0f} degrees at {}'.format(az, datetime.now().strftime('%H:%M')))
 
-    with open(file_name(n_az), 'wb') as f:
-        dump(p, f)
+    with get_azimuth_path(APERTURE, az).open(mode='wb') as azimuth_file:
+        dump(p, azimuth_file)
 
-def to_file():
-    # Empty array to store the new 3D data set in
+def combine():
+    """
+    Load the obstruction grids (1 per azimuth angle) and stitch 
+    them together and store them as npy files.
+    """
     obstr_cube = []
 
-    for n_az in az_range:
-        with open(file_name(n_az), 'rb') as f:
-            data = load(f)
+    for az in az_range:
+        with get_azimuth_path(APERTURE, az).open(mode='rb') as azimuth_file:
+            data = load(azimuth_file)
             obstr_cube.append(data)
 
     obstr_cube = np.array(obstr_cube)
 
     date_signature = datetime.now().strftime('%d_%h_%Y')
-    file_path = 'data/obstruction_cube_{}_{}.npy'.format(args.aperture, date_signature)
+    fn = 'obstruction_cube_{}_{}.npy'.format(args.APERTURE, date_signature)
+    file_path = Path.cwd() / 'data' / fn
 
-    with open(file_path, 'wb') as f:
-        np.save(f, obstr_cube)
+    with file_path.open(mode='wb') as obstr_file:
+        np.save(obstr_file, obstr_cube)
     
-    print('Result is stored in "{}"'.format(file_path))
+    print('Obstruction cube is stored in "{}"'.format(file_path))
+
 
 if __name__ == '__main__':
     print('Start [{}] run at {:}'.format(APERTURE.get_name(), datetime.now().strftime('%H:%M')))
-    results = Parallel(n_jobs=-1)(delayed(gen_grid)(i) for i in az_range)
+    results = Parallel(n_jobs=-1)(delayed(generate_obstruction_grid)(i) for i in az_range)
 
-    # Stich the loose joblib files together
-    to_file()
+    print('Finished [{}] run at {:}; now stitching together the files...'.format(APERTURE.get_name(), datetime.now().strftime('%H:%M')))
+
+    combine()
