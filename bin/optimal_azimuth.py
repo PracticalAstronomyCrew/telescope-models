@@ -87,6 +87,13 @@ ha_range = np.arange(ha_zero.min(), ha_zero.max() + 1, 1)
 dec_range = np.arange(dec_zero.min(), dec_zero.max() + 1, 1)
 
 
+def argmid(array):
+    if array.size % 2 == 0:
+        return int(array.size/2) - 1
+    
+    return int(array.size/2)
+
+
 def ha_dist(ha_array, ha_0):
     """Compute the time the dome could remain at a certain position.
     
@@ -143,6 +150,13 @@ def optimal_az(az_options, ha, dec):
     
     azimuths = np.array(azimuths)
     delta_hs = np.array(delta_hs)
+
+    if args.aperture == 'finder':
+        az_tmp = (azimuths + 180) % 360
+        sort_idx = az_tmp.argsort()
+        
+        middle = argmid(azimuths)
+        return azimuths[sort_idx][middle], delta_hs[sort_idx][middle]
     
     return azimuths[delta_hs.argmax()], delta_hs.max()
 
