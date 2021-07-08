@@ -12,6 +12,12 @@ The `obstruction` package defines an interface to compute the % obstruction of a
 
 The package contains an `Aperture` class in `aperture.py`, which can be inherited to define any aperture using the (right handed) coordinate transformations in `transformations.py`. See `aperture.py` and specifically the `TelescopeAperture`, `GuiderAperture`, and `FinderAperture` as examples.
 
+### perture Obstruction Calculator (MOCCA)
+
+MOCCA (which stands for **M**ick's aperture **O**bstruction **C**al**C**ul**A**tor) allows you to compute the percentage obstruction of the aperture of a telescope aperture, on an equatorial mount, by a hemispherical dome using basic ray tracing techniques.
+
+With `mocca.py`, one can determine the percentage obstruction of the telescope aperture by the dome. Add the `-h` argument to display additional options, such as what aperture (in the case of the Gratama telescope: telescope/guider/finder) and more.
+
 ### Optimal azimuth grid generation
 
 As part of the new dome control system, see [dome-control](https://github.com/PracticalAstronomyCrew/dome-control), we require a grid of azimuth data given hour angle and declination coordinates. We generate this grid, sequentially, using two scripts: `obstruction_grid.py` and `optimal_azimuth.py`,
